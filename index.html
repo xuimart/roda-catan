@@ -31,9 +31,11 @@
 
   * { box-sizing: border-box; }
 
+  html, body{ height: 100%; }
+
   body{
     margin:0;
-    min-height:100vh;
+    height: 100dvh;              /* altura real do viewport, sem barras */
     background:
       radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.25), transparent 60%),
       var(--parchment);
@@ -42,17 +44,20 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    padding: max(28px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
-    overflow-x: hidden;
+    padding: max(10px, env(safe-area-inset-top)) 14px max(10px, env(safe-area-inset-bottom));
+    overflow: hidden;            /* nada de scroll */
   }
 
   .stage{
     width: 100%;
     max-width: 440px;
+    height: 100%;
     display:flex;
     flex-direction:column;
     align-items:center;
-    gap: 22px;
+    justify-content: space-between; /* distribui tudo na altura disponível */
+    /* espaçamento fluido: encolhe em telas baixas */
+    gap: clamp(6px, 1.6vh, 18px);
   }
 
   header{
@@ -61,28 +66,30 @@
 
   h1{
     margin:0;
-    font-size: 1.7rem;
+    font-size: clamp(1.2rem, 4.6vw, 1.7rem);
     font-weight: 700;
     letter-spacing: 0.01em;
     color: var(--ink);
   }
 
   .subtitulo{
-    margin: 6px 0 0;
+    margin: 4px 0 0;
     font-family: Verdana, system-ui, sans-serif;
-    font-size: 0.82rem;
+    font-size: clamp(0.68rem, 2.4vw, 0.82rem);
     color: var(--ink-soft);
-    line-height:1.5;
+    line-height:1.45;
   }
 
   .roda-wrap{
     position: relative;
-    width: min(58vw, 220px);
-    height: min(58vw, 220px);
+    /* usa o menor entre largura e altura pra nunca estourar a tela */
+    width: min(52vw, 34vh, 220px);
+    height: min(52vw, 34vh, 220px);
     display:flex;
     align-items:center;
     justify-content:center;
     touch-action: none;
+    flex-shrink: 0;
   }
 
   .ponteiro{
@@ -132,9 +139,10 @@
     background: var(--panel);
     border: 1px solid rgba(59,42,30,0.25);
     border-radius: 10px;
-    padding: 16px 18px;
+    padding: clamp(8px, 1.6vh, 16px) 18px;
     text-align:center;
     box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    flex-shrink: 0;
   }
 
   .placar .rotulo{
@@ -145,7 +153,7 @@
   }
 
   .placar .valor{
-    font-size: 1.35rem;
+    font-size: clamp(1.05rem, 4vw, 1.35rem);
     font-weight: 700;
     margin: 0;
     display:flex;
@@ -170,24 +178,25 @@
     font-family: Verdana, system-ui, sans-serif;
     font-size: 0.78rem;
     color: var(--ink-soft);
-    margin-top: 8px;
+    margin-top: 6px;
   }
 
   button.girar{
     font-family: Verdana, system-ui, sans-serif;
-    font-size: 1rem;
+    font-size: clamp(0.9rem, 3.4vw, 1rem);
     font-weight: bold;
     letter-spacing: 0.02em;
     color: #FBF3DD;
     background: linear-gradient(180deg, #8a5a34, var(--rim));
     border: none;
     border-radius: 8px;
-    padding: 15px 28px;
-    min-height: 50px;
+    padding: clamp(10px, 1.8vh, 15px) 28px;
+    min-height: clamp(42px, 6.5vh, 50px);
     width: min(100%, 320px);
     cursor: pointer;
     box-shadow: 0 4px 0 #241a12, 0 6px 10px rgba(0,0,0,0.25);
     transition: transform 0.08s ease, box-shadow 0.08s ease;
+    flex-shrink: 0;
   }
 
   button.girar:active:not(:disabled){
@@ -204,10 +213,11 @@
     display:flex;
     flex-wrap:wrap;
     justify-content:center;
-    gap: 8px 14px;
+    gap: 4px 12px;
     font-family: Verdana, system-ui, sans-serif;
-    font-size: 0.72rem;
+    font-size: clamp(0.62rem, 2.2vw, 0.72rem);
     color: var(--ink-soft);
+    flex-shrink: 0;
   }
 
   .legenda span{
@@ -226,13 +236,15 @@
     display:flex;
     flex-direction:column;
     align-items:center;
-    gap: 10px;
+    gap: clamp(2px, 0.8vh, 8px);
+    flex-shrink: 0;
   }
 
   .ampulheta{
     position: relative;
-    width: 96px;
-    height: 132px;
+    /* proporção 96:132 mantida; encolhe com a altura da tela */
+    height: min(18vh, 132px);
+    aspect-ratio: 96 / 132;
     cursor: pointer;
     filter: drop-shadow(0 3px 5px rgba(0,0,0,0.28));
     transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -247,12 +259,13 @@
 
   .tempo{
     font-family: Verdana, system-ui, sans-serif;
-    font-size: 1.9rem;
+    font-size: clamp(1.4rem, 5.5vw, 1.9rem);
     font-weight: 700;
     color: var(--ink);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
     transition: color 0.3s ease;
+    line-height: 1.1;
   }
 
   .tempo.acabou{
@@ -266,10 +279,11 @@
 
   .timer-dica{
     font-family: Verdana, system-ui, sans-serif;
-    font-size: 0.72rem;
+    font-size: clamp(0.62rem, 2.2vw, 0.72rem);
     color: var(--ink-soft);
     text-align:center;
-    line-height:1.5;
+    line-height:1.4;
+    margin: 0;
     min-height: 1.1em;
   }
 
@@ -285,6 +299,16 @@
   }
 
   .btn-sensor[hidden]{ display:none; }
+
+  /* Telas baixas (ex.: celular deitado): esconde o que é secundário
+     pra garantir que tudo caiba sem scroll. */
+  @media (max-height: 640px){
+    .legenda{ display:none; }
+    .subtitulo{ display:none; }
+  }
+  @media (max-height: 720px){
+    .subtitulo br{ display:none; }
+  }
 
   @media (prefers-reduced-motion: reduce){
     canvas{ transition: none !important; }

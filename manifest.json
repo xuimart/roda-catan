@@ -1,8 +1,11 @@
 {
+  "id": "roda-catan",
   "name": "Roda das Estações — Catan",
   "short_name": "Roda Catan",
   "description": "Gire a roda para sortear a estação da rodada no Catan. O recurso sorteado é produzido em dobro até a próxima rodada.",
   "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["games", "entertainment", "utilities"],
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
