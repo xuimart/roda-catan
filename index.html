@@ -220,8 +220,76 @@
     width:9px; height:9px; border-radius:50%; display:inline-block;
   }
 
+  /* ---- Ampulheta / Timer ---- */
+  .timer-wrap{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap: 10px;
+  }
+
+  .ampulheta{
+    position: relative;
+    width: 96px;
+    height: 132px;
+    cursor: pointer;
+    filter: drop-shadow(0 3px 5px rgba(0,0,0,0.28));
+    transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* quando reinicia, gira 180° pra dar a sensação de virar a ampulheta */
+  .ampulheta.virando{
+    transform: rotate(180deg);
+  }
+
+  .ampulheta svg{ width:100%; height:100%; display:block; }
+
+  .tempo{
+    font-family: Verdana, system-ui, sans-serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    transition: color 0.3s ease;
+  }
+
+  .tempo.acabou{
+    color: var(--tijolo);
+    animation: pisca 0.8s steps(1) infinite;
+  }
+
+  @keyframes pisca{
+    50%{ opacity: 0.25; }
+  }
+
+  .timer-dica{
+    font-family: Verdana, system-ui, sans-serif;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    text-align:center;
+    line-height:1.5;
+    min-height: 1.1em;
+  }
+
+  .btn-sensor{
+    font-family: Verdana, system-ui, sans-serif;
+    font-size: 0.78rem;
+    color: var(--rim);
+    background: transparent;
+    border: 1px solid rgba(59,42,30,0.4);
+    border-radius: 999px;
+    padding: 7px 16px;
+    cursor: pointer;
+  }
+
+  .btn-sensor[hidden]{ display:none; }
+
   @media (prefers-reduced-motion: reduce){
     canvas{ transition: none !important; }
+    .ampulheta{ transition: none !important; }
+    .tempo.acabou{ animation: none !important; }
   }
 </style>
 </head>
@@ -230,7 +298,7 @@
 <div class="stage">
   <header>
     <h1>Roda das Estações</h1>
-    <p class="subtitulo">Gire para sortear a estação da rodada.<br>O recurso sorteado é produzido em dobro até a próxima rodada.</p>
+    <p class="subtitulo">Gire para sortear a estação da rodada.<br>O recurso sorteado é produzido em dobro até a próxima rodada.<br>Cada rodada tem 1min30 para troca e ação.</p>
   </header>
 
   <div class="roda-wrap">
@@ -244,6 +312,48 @@
     <p class="rotulo">Estação atual</p>
     <p class="valor" id="valorAtual">— gire a roda —</p>
     <p class="rodada" id="contadorRodada">Nenhuma rodada iniciada</p>
+  </div>
+
+  <div class="timer-wrap">
+    <div class="ampulheta" id="ampulheta" role="button" aria-label="Reiniciar timer da rodada">
+      <svg viewBox="0 0 96 132" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <!-- recorte no formato do bulbo superior -->
+          <clipPath id="bulboCima">
+            <path d="M14 12 H82 V20 C82 40 60 56 48 63 C36 56 14 40 14 20 Z"/>
+          </clipPath>
+          <!-- recorte no formato do bulbo inferior -->
+          <clipPath id="bulboBaixo">
+            <path d="M48 69 C60 76 82 92 82 112 V120 H14 V112 C14 92 36 76 48 69 Z"/>
+          </clipPath>
+        </defs>
+
+        <!-- tampas de madeira -->
+        <rect x="8" y="6" width="80" height="9" rx="3" fill="#7A5230"/>
+        <rect x="8" y="117" width="80" height="9" rx="3" fill="#7A5230"/>
+
+        <!-- vidro -->
+        <path d="M14 12 H82 V20 C82 40 60 56 48 63 C36 56 14 40 14 20 Z"
+              fill="rgba(255,255,255,0.35)" stroke="var(--rim)" stroke-width="2"/>
+        <path d="M48 69 C60 76 82 92 82 112 V120 H14 V112 C14 92 36 76 48 69 Z"
+              fill="rgba(255,255,255,0.35)" stroke="var(--rim)" stroke-width="2"/>
+
+        <!-- areia (retângulos recortados pelos bulbos; a altura muda via JS) -->
+        <g clip-path="url(#bulboCima)">
+          <rect id="areiaCima" x="0" y="12" width="96" height="52" fill="var(--brass)"/>
+        </g>
+        <g clip-path="url(#bulboBaixo)">
+          <rect id="areiaBaixo" x="0" y="120" width="96" height="0" fill="var(--brass)"/>
+        </g>
+
+        <!-- filete de areia caindo -->
+        <rect id="filete" x="46.5" y="60" width="3" height="12" fill="var(--brass)"/>
+      </svg>
+    </div>
+
+    <div class="tempo" id="tempo">01:30</div>
+    <p class="timer-dica" id="timerDica">Vire o celular de cabeça para baixo para reiniciar o timer.</p>
+    <button class="btn-sensor" id="btnSensor" hidden>Ativar sensor de virar</button>
   </div>
 
   <button class="girar" id="btnGirar">Girar a roda</button>
@@ -337,9 +447,150 @@
       valorAtual.style.color = escolhido.cor;
       contadorRodada.textContent = 'Rodada ' + rodada;
       btn.disabled = false;
+      // ao terminar de girar, começa o tempo de troca e ação
+      timer.reiniciar();
     };
     canvas.addEventListener('transitionend', onFim);
   });
+
+  /* ---------- Timer / Ampulheta ---------- */
+  const timer = (function(){
+    const DURACAO = 90; // 1 min 30 s, em segundos
+
+    // Geometria da areia no SVG (bate com os <rect> do HTML).
+    const CIMA_Y = 12, CIMA_H = 52;      // bulbo de cima cheio: y=12, altura=52
+    const BAIXO_BASE = 120, BAIXO_MAX = 52; // bulbo de baixo enche subindo a partir de y=120
+
+    const elTempo = document.getElementById('tempo');
+    const elDica = document.getElementById('timerDica');
+    const ampulheta = document.getElementById('ampulheta');
+    const areiaCima = document.getElementById('areiaCima');
+    const areiaBaixo = document.getElementById('areiaBaixo');
+    const filete = document.getElementById('filete');
+
+    let inicio = null;      // timestamp do começo
+    let rafId = null;
+    let rodando = false;
+
+    function formatar(seg){
+      seg = Math.max(0, Math.ceil(seg));
+      const m = Math.floor(seg / 60);
+      const s = seg % 60;
+      return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+
+    function desenharAreia(prog){
+      // prog: 0 (cheio em cima) -> 1 (tudo embaixo)
+      const restante = 1 - prog;
+      // bulbo de cima esvazia de baixo pra cima: a "superfície" desce
+      const alturaCima = CIMA_H * restante;
+      areiaCima.setAttribute('y', (CIMA_Y + (CIMA_H - alturaCima)).toFixed(1));
+      areiaCima.setAttribute('height', alturaCima.toFixed(1));
+      // bulbo de baixo enche de baixo pra cima
+      const alturaBaixo = BAIXO_MAX * prog;
+      areiaBaixo.setAttribute('y', (BAIXO_BASE - alturaBaixo).toFixed(1));
+      areiaBaixo.setAttribute('height', alturaBaixo.toFixed(1));
+      // filete some quando acaba
+      filete.style.opacity = (prog > 0 && prog < 1) ? '1' : '0';
+    }
+
+    function tick(now){
+      const decorrido = (now - inicio) / 1000;
+      const restante = DURACAO - decorrido;
+      const prog = Math.min(1, decorrido / DURACAO);
+      desenharAreia(prog);
+
+      if (restante <= 0){
+        elTempo.textContent = '00:00';
+        elTempo.classList.add('acabou');
+        elDica.textContent = 'Tempo esgotado! Vire o celular para reiniciar.';
+        rodando = false;
+        rafId = null;
+        return;
+      }
+      elTempo.textContent = formatar(restante);
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function reiniciar(){
+      if (rafId) cancelAnimationFrame(rafId);
+      elTempo.classList.remove('acabou');
+      elDica.textContent = 'Vire o celular de cabeça para baixo para reiniciar o timer.';
+      // animação de virar a ampulheta
+      ampulheta.classList.toggle('virando');
+      inicio = performance.now();
+      rodando = true;
+      rafId = requestAnimationFrame(tick);
+    }
+
+    // estado inicial: cheio em cima, parado
+    desenharAreia(0);
+    filete.style.opacity = '0';
+
+    // toque na ampulheta reinicia (fallback universal)
+    ampulheta.addEventListener('click', reiniciar);
+
+    return { reiniciar, estaRodando: () => rodando };
+  })();
+
+  /* ---------- Virar o celular (sensor de orientação) ---------- */
+  (function(){
+    const elDica = document.getElementById('timerDica');
+    const btnSensor = document.getElementById('btnSensor');
+    let deBaixoPraCima = false; // estado atual: tela virada?
+    let ultimoDisparo = 0;
+
+    function aoOrientar(e){
+      // beta ~ inclinação frente/trás. Perto de 180 (ou <= -150) = de cabeça pra baixo.
+      const beta = e.beta;
+      if (beta === null || beta === undefined) return;
+      const viradoAgora = Math.abs(beta) > 150;
+
+      // dispara só na transição normal -> virado, com cooldown
+      const agora = Date.now();
+      if (viradoAgora && !deBaixoPraCima && (agora - ultimoDisparo) > 1200){
+        ultimoDisparo = agora;
+        timer.reiniciar();
+      }
+      deBaixoPraCima = viradoAgora;
+    }
+
+    function ativar(){
+      window.addEventListener('deviceorientation', aoOrientar, true);
+      btnSensor.hidden = true;
+    }
+
+    const temSensor = typeof DeviceOrientationEvent !== 'undefined';
+    if (!temSensor){
+      elDica.textContent = 'Toque na ampulheta para reiniciar o timer.';
+      return;
+    }
+
+    // iOS 13+ exige permissão via gesto do usuário.
+    const precisaPermissao =
+      typeof DeviceOrientationEvent.requestPermission === 'function';
+
+    if (precisaPermissao){
+      btnSensor.hidden = false;
+      btnSensor.addEventListener('click', async () => {
+        try {
+          const resp = await DeviceOrientationEvent.requestPermission();
+          if (resp === 'granted'){
+            ativar();
+          } else {
+            elDica.textContent = 'Sensor negado. Toque na ampulheta para reiniciar.';
+            btnSensor.hidden = true;
+          }
+        } catch {
+          elDica.textContent = 'Toque na ampulheta para reiniciar o timer.';
+          btnSensor.hidden = true;
+        }
+      });
+    } else {
+      // Android e afins: ativa direto.
+      ativar();
+    }
+  })();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
