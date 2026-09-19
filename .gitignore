@@ -1,0 +1,14 @@
+# Sistema
+Thumbs.db
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
+
+# Python (caso gere ícones de novo)
+__pycache__/
+*.pyc
+
+# Node (caso use Bubblewrap/PWABuilder localmente)
+node_modules/
