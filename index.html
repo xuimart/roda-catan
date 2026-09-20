@@ -313,6 +313,11 @@
     box-shadow: 0 2px 5px rgba(0,0,0,0.15);
   }
   .btn-som.mudo{ opacity: 0.5; }
+  /* esconde o botão de som quando o timer está em tela cheia */
+  body.fs-aberto .btn-som{
+    opacity: 0;
+    pointer-events: none;
+  }
 
   /* ---- Overlay fullscreen do timer ---- */
   .fullscreen-timer{
@@ -324,14 +329,44 @@
     align-items:center;
     justify-content:center;
     gap: 4vh;
+    --cor-recurso: #4a3625;
+    --cor-recurso-media: #2d2216;
+    /* fundo tingido com a cor do recurso, escurecido nas bordas p/ legibilidade */
     background:
-      radial-gradient(ellipse at 50% 30%, #4a3625, var(--rim) 70%);
+      radial-gradient(ellipse at 50% 35%,
+        var(--cor-recurso) 0%,
+        var(--cor-recurso-media) 55%,
+        #17100a 100%);
     color: #FBF3DD;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.45s ease, visibility 0.45s ease;
+    transition: opacity 0.45s ease, visibility 0.45s ease, background 0.5s ease;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* faixa grande com a cor pura do recurso, pra identificar de longe */
+  .fs-faixa{
+    width: 100%;
+    padding: clamp(6px, 1.4vh, 12px) 0;
+    text-align:center;
+    background: var(--cor-recurso);
+    color: #fff;
+    font-family: Verdana, system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(1.1rem, 5vw, 1.7rem);
+    letter-spacing: 0.03em;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.45);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: opacity 0.5s 0.1s ease, transform 0.5s 0.1s ease;
+    position: absolute;
+    top: 0; left: 0;
+  }
+  .fullscreen-timer.ativo .fs-faixa{
+    opacity: 1;
+    transform: translateY(0);
   }
 
   .fullscreen-timer.ativo{
@@ -339,16 +374,6 @@
     visibility: visible;
   }
 
-  .fs-rotulo{
-    font-family: Verdana, system-ui, sans-serif;
-    font-size: clamp(0.9rem, 4vw, 1.2rem);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: rgba(251,243,221,0.7);
-    opacity: 0;
-    transform: translateY(14px);
-    transition: opacity 0.5s 0.15s ease, transform 0.5s 0.15s ease;
-  }
   .fs-recurso{
     font-family: Georgia, serif;
     font-size: clamp(1.6rem, 8vw, 2.8rem);
@@ -382,7 +407,6 @@
     transition: opacity 0.6s 0.5s ease;
   }
 
-  .fullscreen-timer.ativo .fs-rotulo,
   .fullscreen-timer.ativo .fs-recurso,
   .fullscreen-timer.ativo .fs-dica{
     opacity: 1;
@@ -418,7 +442,7 @@
     .tempo.acabou{ animation: none !important; }
     .resultado.destaque .nome,
     .resultado.destaque .vezes{ animation: none !important; }
-    .fullscreen-timer, .fs-rotulo, .fs-recurso, .fs-tempo, .fs-dica{ transition: opacity 0.2s ease !important; }
+    .fullscreen-timer, .fs-faixa, .fs-recurso, .fs-tempo, .fs-dica{ transition: opacity 0.2s ease !important; }
   }
 </style>
 </head>
@@ -480,8 +504,8 @@
 
 <!-- Overlay em tela cheia enquanto o tempo corre -->
 <div class="fullscreen-timer" id="fsTimer" role="dialog" aria-label="Tempo da rodada">
-  <div class="fs-rotulo" id="fsRotulo">Rodada</div>
-  <div class="fs-recurso" id="fsRecurso">Tijolo x2</div>
+  <div class="fs-faixa" id="fsFaixa">Tijolo — produz em DOBRO</div>
+  <div class="fs-recurso" id="fsRecurso">Tijolo <span>x2</span></div>
   <div class="fs-tempo" id="fsTempo">01:30</div>
   <div class="fs-dica">Toque na tela para encerrar</div>
 </div>
@@ -549,25 +573,49 @@
       beep(392, 0.5,  'sawtooth', 0.4,  t0 + 0.5);
     }
 
-    // som curtinho ao girar a roda
-    function giro(){
+    // um "tec" seco de roleta (ruído curtíssimo com tom)
+    function tec(volume){
       const a = ctxAudio();
       if (!a || !ligado) return;
       const t = a.currentTime;
       const osc = a.createOscillator();
       const g = a.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(300, t);
-      osc.frequency.exponentialRampToValueAtTime(900, t + 0.25);
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(1200, t);
+      osc.frequency.exponentialRampToValueAtTime(500, t + 0.02);
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      g.gain.exponentialRampToValueAtTime(volume || 0.18, t + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
       osc.connect(g).connect(a.destination);
       osc.start(t);
-      osc.stop(t + 0.32);
+      osc.stop(t + 0.06);
     }
 
-    return { destravar, tique, tiqueForte, fim, giro,
+    // sequência de "tec-tec-tec" que desacelera junto com a roda.
+    // duracaoMs = tempo total do giro. Retorna função pra cancelar.
+    let giroTimers = [];
+    function girarRoleta(duracaoMs){
+      cancelarGiro();
+      const a = ctxAudio();
+      if (!a || !ligado) return;
+      // gera instantes de clique cada vez mais espaçados (ease-out).
+      let t = 0;
+      let intervalo = 45;       // começa rápido (45ms entre tecs)
+      const desaceleracao = 1.055;
+      while (t < duracaoMs){
+        const quando = t;
+        const vol = 0.2 * (1 - t / duracaoMs) + 0.05; // vai baixando o volume
+        giroTimers.push(setTimeout(() => tec(vol), quando));
+        t += intervalo;
+        intervalo *= desaceleracao;  // cada intervalo maior = desacelera
+      }
+    }
+    function cancelarGiro(){
+      giroTimers.forEach(clearTimeout);
+      giroTimers = [];
+    }
+
+    return { destravar, tique, tiqueForte, fim, girarRoleta, cancelarGiro,
              alternar: () => (ligado = !ligado), estaLigado: () => ligado };
   })();
 
@@ -629,7 +677,7 @@
     if (girando) return;
     girando = true;
     som.destravar();   // libera o áudio no gesto do usuário
-    som.giro();
+    som.girarRoleta(3600);  // tec-tec-tec que desacelera junto com a roda
     canvas.classList.add('girando');
     resultado.classList.remove('destaque');
     resNome.style.color = 'var(--ink-soft)';
@@ -651,6 +699,7 @@
       rodada += 1;
       girando = false;
       canvas.classList.remove('girando');
+      som.cancelarGiro();  // garante que o tec-tec pare junto com a roda
 
       const escolhido = recursos[indiceSorteado];
       ultimoRecurso = escolhido;
@@ -699,8 +748,16 @@
     // fullscreen
     const fsTimer = document.getElementById('fsTimer');
     const fsTempo = document.getElementById('fsTempo');
-    const fsRotulo = document.getElementById('fsRotulo');
+    const fsFaixa = document.getElementById('fsFaixa');
     const fsRecurso = document.getElementById('fsRecurso');
+
+    // escurece uma cor hex por um fator (0-1). Usado no gradiente do fundo.
+    function escurecer(hex, fator){
+      const n = parseInt(hex.slice(1), 16);
+      let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+      r = Math.round(r * fator); g = Math.round(g * fator); b = Math.round(b * fator);
+      return 'rgb(' + r + ',' + g + ',' + b + ')';
+    }
 
     let inicio = null;
     let rafId = null;
@@ -728,12 +785,20 @@
 
     function abrirFullscreen(){
       if (recursoAtual){
+        const cor = recursoAtual.cor;
+        // fundo tingido com a cor do recurso (dá pra ver de longe)
+        fsTimer.style.setProperty('--cor-recurso', cor);
+        fsTimer.style.setProperty('--cor-recurso-media', escurecer(cor, 0.45));
+        // faixa grande no topo
+        fsFaixa.style.background = cor;
+        fsFaixa.textContent = recursoAtual.nome + ' — produz em DOBRO';
+        // nome + x2
         fsRecurso.innerHTML = recursoAtual.nome +
-          ' <span style="opacity:0.75">x2</span>';
-        // escreve o recurso na cor dele (ovelha=verde, tijolo=vermelho, etc.)
-        fsRecurso.style.color = recursoAtual.cor;
+          ' <span style="opacity:0.85">x2</span>';
+        fsRecurso.style.color = '#FBF3DD';
       }
       fsTempo.classList.remove('pouco', 'acabando');
+      document.body.classList.add('fs-aberto');
       fsTimer.classList.add('ativo');
       // tenta fullscreen real do navegador (Android). Ignora se falhar.
       const el = document.documentElement;
@@ -742,6 +807,7 @@
 
     function fecharFullscreen(){
       fsTimer.classList.remove('ativo');
+      document.body.classList.remove('fs-aberto');
       if (document.fullscreenElement && document.exitFullscreen){
         document.exitFullscreen().catch(() => {});
       }
