@@ -134,81 +134,6 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.4);
   }
 
-  .placar{
-    width:100%;
-    background: var(--panel);
-    border: 1px solid rgba(59,42,30,0.25);
-    border-radius: 10px;
-    padding: clamp(8px, 1.6vh, 16px) 18px;
-    text-align:center;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    flex-shrink: 0;
-  }
-
-  .placar .rotulo{
-    font-family: Verdana, system-ui, sans-serif;
-    font-size: 0.72rem;
-    color: var(--ink-soft);
-    margin: 0 0 4px;
-  }
-
-  .placar .valor{
-    font-size: clamp(1.05rem, 4vw, 1.35rem);
-    font-weight: 700;
-    margin: 0;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap: 8px;
-    transition: color 0.3s ease;
-  }
-
-  .dobro{
-    font-family: Verdana, system-ui, sans-serif;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #FBF3DD;
-    background: var(--rim);
-    border-radius: 999px;
-    padding: 3px 10px;
-    line-height: 1.4;
-  }
-
-  .placar .rodada{
-    font-family: Verdana, system-ui, sans-serif;
-    font-size: 0.78rem;
-    color: var(--ink-soft);
-    margin-top: 6px;
-  }
-
-  button.girar{
-    font-family: Verdana, system-ui, sans-serif;
-    font-size: clamp(0.9rem, 3.4vw, 1rem);
-    font-weight: bold;
-    letter-spacing: 0.02em;
-    color: #FBF3DD;
-    background: linear-gradient(180deg, #8a5a34, var(--rim));
-    border: none;
-    border-radius: 8px;
-    padding: clamp(10px, 1.8vh, 15px) 28px;
-    min-height: clamp(42px, 6.5vh, 50px);
-    width: min(100%, 320px);
-    cursor: pointer;
-    box-shadow: 0 4px 0 #241a12, 0 6px 10px rgba(0,0,0,0.25);
-    transition: transform 0.08s ease, box-shadow 0.08s ease;
-    flex-shrink: 0;
-  }
-
-  button.girar:active:not(:disabled){
-    transform: translateY(3px);
-    box-shadow: 0 1px 0 #241a12, 0 3px 6px rgba(0,0,0,0.25);
-  }
-
-  button.girar:disabled{
-    opacity: 0.55;
-    cursor: default;
-  }
-
   .legenda{
     display:flex;
     flex-wrap:wrap;
@@ -300,6 +225,158 @@
 
   .btn-sensor[hidden]{ display:none; }
 
+  /* ---- Resultado em destaque (substitui o placar) ---- */
+  .resultado{
+    width:100%;
+    min-height: clamp(48px, 9vh, 74px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .resultado .nome{
+    font-family: Georgia, serif;
+    font-size: clamp(1.6rem, 7vw, 2.4rem);
+    font-weight: 700;
+    color: var(--ink-soft);
+    letter-spacing: 0.01em;
+    transition: color 0.3s ease;
+  }
+
+  .resultado .vezes{
+    font-family: Verdana, system-ui, sans-serif;
+    font-size: clamp(1rem, 4.5vw, 1.4rem);
+    font-weight: 700;
+    color: #FBF3DD;
+    background: var(--rim);
+    border-radius: 999px;
+    padding: 4px 14px;
+    line-height: 1.3;
+  }
+
+  .resultado .rodada-tag{
+    display:block;
+    font-family: Verdana, system-ui, sans-serif;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    text-align:center;
+    margin-top: 2px;
+  }
+
+  /* animação de destaque quando a roleta para */
+  .resultado.destaque .nome{
+    animation: revela 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .resultado.destaque .vezes{
+    animation: revelaTag 0.7s 0.15s backwards cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes revela{
+    0%{ transform: scale(0.4); opacity: 0; }
+    60%{ transform: scale(1.18); }
+    100%{ transform: scale(1); opacity: 1; }
+  }
+  @keyframes revelaTag{
+    0%{ transform: scale(0) rotate(-20deg); opacity: 0; }
+    100%{ transform: scale(1) rotate(0); opacity: 1; }
+  }
+
+  /* brilho piscando na roda ao parar */
+  .roda-wrap.flash .aro{
+    animation: brilho 0.9s ease-out;
+  }
+  @keyframes brilho{
+    0%,100%{ box-shadow: 0 8px 18px rgba(0,0,0,0.35), inset 0 0 0 3px rgba(201,162,39,0.5); }
+    40%{ box-shadow: 0 0 30px 8px rgba(201,162,39,0.9), inset 0 0 0 4px rgba(201,162,39,1); }
+  }
+
+  canvas{ cursor: pointer; }
+  canvas.girando{ cursor: default; }
+
+  /* ---- Overlay fullscreen do timer ---- */
+  .fullscreen-timer{
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap: 4vh;
+    background:
+      radial-gradient(ellipse at 50% 30%, #4a3625, var(--rim) 70%);
+    color: #FBF3DD;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.45s ease, visibility 0.45s ease;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .fullscreen-timer.ativo{
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .fs-rotulo{
+    font-family: Verdana, system-ui, sans-serif;
+    font-size: clamp(0.9rem, 4vw, 1.2rem);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(251,243,221,0.7);
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.5s 0.15s ease, transform 0.5s 0.15s ease;
+  }
+  .fs-recurso{
+    font-family: Georgia, serif;
+    font-size: clamp(1.4rem, 7vw, 2.4rem);
+    font-weight: 700;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.5s 0.2s ease, transform 0.5s 0.2s ease;
+  }
+  .fs-tempo{
+    font-family: Verdana, system-ui, sans-serif;
+    font-size: clamp(4.5rem, 26vw, 12rem);
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: scale(0.85);
+    transition: opacity 0.5s 0.25s ease, transform 0.5s 0.25s ease, color 0.3s ease;
+  }
+  .fs-dica{
+    font-family: Verdana, system-ui, sans-serif;
+    font-size: clamp(0.72rem, 3vw, 0.95rem);
+    color: rgba(251,243,221,0.55);
+    opacity: 0;
+    transition: opacity 0.6s 0.5s ease;
+  }
+
+  .fullscreen-timer.ativo .fs-rotulo,
+  .fullscreen-timer.ativo .fs-recurso,
+  .fullscreen-timer.ativo .fs-dica{
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .fullscreen-timer.ativo .fs-tempo{
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .fs-tempo.pouco{ color: #E8B84B; }
+  .fs-tempo.acabando{
+    color: #E27A54;
+    animation: pulso 1s ease-in-out infinite;
+  }
+  @keyframes pulso{
+    50%{ transform: scale(1.06); }
+  }
+
   /* Telas baixas (ex.: celular deitado): esconde o que é secundário
      pra garantir que tudo caiba sem scroll. */
   @media (max-height: 640px){
@@ -314,6 +391,9 @@
     canvas{ transition: none !important; }
     .ampulheta{ transition: none !important; }
     .tempo.acabou{ animation: none !important; }
+    .resultado.destaque .nome,
+    .resultado.destaque .vezes{ animation: none !important; }
+    .fullscreen-timer, .fs-rotulo, .fs-recurso, .fs-tempo, .fs-dica{ transition: opacity 0.2s ease !important; }
   }
 </style>
 </head>
@@ -322,67 +402,61 @@
 <div class="stage">
   <header>
     <h1>Roda das Estações</h1>
-    <p class="subtitulo">Gire para sortear a estação da rodada.<br>O recurso sorteado é produzido em dobro até a próxima rodada.<br>Cada rodada tem 1min30 para troca e ação.</p>
+    <p class="subtitulo">Toque na roda para sortear a estação.<br>O recurso sorteado é produzido em dobro (x2) na rodada.<br>Cada rodada tem 1min30 para troca e ação.</p>
   </header>
 
-  <div class="roda-wrap">
+  <div class="roda-wrap" id="rodaWrap">
     <div class="aro"></div>
     <div class="ponteiro"></div>
-    <canvas id="roda" width="600" height="600"></canvas>
+    <canvas id="roda" width="600" height="600" role="button" aria-label="Toque para girar a roda"></canvas>
     <div class="cubo"></div>
   </div>
 
-  <div class="placar">
-    <p class="rotulo">Estação atual</p>
-    <p class="valor" id="valorAtual">— gire a roda —</p>
-    <p class="rodada" id="contadorRodada">Nenhuma rodada iniciada</p>
+  <div class="resultado" id="resultado" aria-live="polite">
+    <span class="nome" id="resNome">Toque na roda</span>
   </div>
 
   <div class="timer-wrap">
     <div class="ampulheta" id="ampulheta" role="button" aria-label="Reiniciar timer da rodada">
       <svg viewBox="0 0 96 132" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <defs>
-          <!-- recorte no formato do bulbo superior -->
           <clipPath id="bulboCima">
             <path d="M14 12 H82 V20 C82 40 60 56 48 63 C36 56 14 40 14 20 Z"/>
           </clipPath>
-          <!-- recorte no formato do bulbo inferior -->
           <clipPath id="bulboBaixo">
             <path d="M48 69 C60 76 82 92 82 112 V120 H14 V112 C14 92 36 76 48 69 Z"/>
           </clipPath>
         </defs>
-
-        <!-- tampas de madeira -->
         <rect x="8" y="6" width="80" height="9" rx="3" fill="#7A5230"/>
         <rect x="8" y="117" width="80" height="9" rx="3" fill="#7A5230"/>
-
-        <!-- vidro -->
         <path d="M14 12 H82 V20 C82 40 60 56 48 63 C36 56 14 40 14 20 Z"
               fill="rgba(255,255,255,0.35)" stroke="var(--rim)" stroke-width="2"/>
         <path d="M48 69 C60 76 82 92 82 112 V120 H14 V112 C14 92 36 76 48 69 Z"
               fill="rgba(255,255,255,0.35)" stroke="var(--rim)" stroke-width="2"/>
-
-        <!-- areia (retângulos recortados pelos bulbos; a altura muda via JS) -->
         <g clip-path="url(#bulboCima)">
           <rect id="areiaCima" x="0" y="12" width="96" height="52" fill="var(--brass)"/>
         </g>
         <g clip-path="url(#bulboBaixo)">
           <rect id="areiaBaixo" x="0" y="120" width="96" height="0" fill="var(--brass)"/>
         </g>
-
-        <!-- filete de areia caindo -->
         <rect id="filete" x="46.5" y="60" width="3" height="12" fill="var(--brass)"/>
       </svg>
     </div>
 
     <div class="tempo" id="tempo">01:30</div>
-    <p class="timer-dica" id="timerDica">Vire o celular de cabeça para baixo para reiniciar o timer.</p>
+    <p class="timer-dica" id="timerDica">Toque na roda para sortear e iniciar a rodada.</p>
     <button class="btn-sensor" id="btnSensor" hidden>Ativar sensor de virar</button>
   </div>
 
-  <button class="girar" id="btnGirar">Girar a roda</button>
-
   <div class="legenda" id="legenda"></div>
+</div>
+
+<!-- Overlay em tela cheia enquanto o tempo corre -->
+<div class="fullscreen-timer" id="fsTimer" role="dialog" aria-label="Tempo da rodada">
+  <div class="fs-rotulo" id="fsRotulo">Rodada</div>
+  <div class="fs-recurso" id="fsRecurso">Tijolo x2</div>
+  <div class="fs-tempo" id="fsTempo">01:30</div>
+  <div class="fs-dica">Toque na tela para encerrar</div>
 </div>
 
 <script>
@@ -440,16 +514,21 @@
     legenda.appendChild(item);
   });
 
-  const btn = document.getElementById('btnGirar');
-  const valorAtual = document.getElementById('valorAtual');
-  const contadorRodada = document.getElementById('contadorRodada');
+  const rodaWrap = document.getElementById('rodaWrap');
+  const resultado = document.getElementById('resultado');
+  const resNome = document.getElementById('resNome');
 
   let rotacaoAtual = 0;
   let rodada = 0;
+  let girando = false;
+  let ultimoRecurso = null;
 
-  btn.addEventListener('click', () => {
-    btn.disabled = true;
-    valorAtual.style.color = 'var(--ink-soft)';
+  function girar(){
+    if (girando) return;
+    girando = true;
+    canvas.classList.add('girando');
+    resultado.classList.remove('destaque');
+    resNome.style.color = 'var(--ink-soft)';
 
     const indiceSorteado = Math.floor(Math.random() * recursos.length);
     const centroSegmento = indiceSorteado * (360 / recursos.length) + (360 / recursos.length) / 2;
@@ -466,24 +545,45 @@
     const onFim = () => {
       canvas.removeEventListener('transitionend', onFim);
       rodada += 1;
+      girando = false;
+      canvas.classList.remove('girando');
+
       const escolhido = recursos[indiceSorteado];
-      valorAtual.innerHTML = escolhido.nome + ' <span class="dobro">+2</span>';
-      valorAtual.style.color = escolhido.cor;
-      contadorRodada.textContent = 'Rodada ' + rodada;
-      btn.disabled = false;
-      // ao terminar de girar, começa o tempo de troca e ação
-      timer.reiniciar();
+      ultimoRecurso = escolhido;
+
+      // resultado em destaque (com animação)
+      resNome.textContent = escolhido.nome;
+      resNome.style.color = escolhido.cor;
+      resultado.innerHTML =
+        '<span class="nome" id="resNome" style="color:' + escolhido.cor + '">' + escolhido.nome + '</span>' +
+        '<span class="vezes">x2</span>';
+      // reinicia a animação de destaque
+      void resultado.offsetWidth;
+      resultado.classList.add('destaque');
+
+      // brilho na roda
+      rodaWrap.classList.remove('flash');
+      void rodaWrap.offsetWidth;
+      rodaWrap.classList.add('flash');
+
+      // vibra no celular (se suportado)
+      if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+
+      // ao terminar de girar, começa o tempo em tela cheia
+      timer.reiniciar(escolhido);
     };
     canvas.addEventListener('transitionend', onFim);
-  });
+  }
 
-  /* ---------- Timer / Ampulheta ---------- */
+  canvas.addEventListener('click', girar);
+
+  /* ---------- Timer / Ampulheta + Fullscreen ---------- */
   const timer = (function(){
     const DURACAO = 90; // 1 min 30 s, em segundos
 
     // Geometria da areia no SVG (bate com os <rect> do HTML).
-    const CIMA_Y = 12, CIMA_H = 52;      // bulbo de cima cheio: y=12, altura=52
-    const BAIXO_BASE = 120, BAIXO_MAX = 52; // bulbo de baixo enche subindo a partir de y=120
+    const CIMA_Y = 12, CIMA_H = 52;
+    const BAIXO_BASE = 120, BAIXO_MAX = 52;
 
     const elTempo = document.getElementById('tempo');
     const elDica = document.getElementById('timerDica');
@@ -492,9 +592,16 @@
     const areiaBaixo = document.getElementById('areiaBaixo');
     const filete = document.getElementById('filete');
 
-    let inicio = null;      // timestamp do começo
+    // fullscreen
+    const fsTimer = document.getElementById('fsTimer');
+    const fsTempo = document.getElementById('fsTempo');
+    const fsRotulo = document.getElementById('fsRotulo');
+    const fsRecurso = document.getElementById('fsRecurso');
+
+    let inicio = null;
     let rafId = null;
     let rodando = false;
+    let recursoAtual = null;
 
     function formatar(seg){
       seg = Math.max(0, Math.ceil(seg));
@@ -504,18 +611,44 @@
     }
 
     function desenharAreia(prog){
-      // prog: 0 (cheio em cima) -> 1 (tudo embaixo)
       const restante = 1 - prog;
-      // bulbo de cima esvazia de baixo pra cima: a "superfície" desce
       const alturaCima = CIMA_H * restante;
       areiaCima.setAttribute('y', (CIMA_Y + (CIMA_H - alturaCima)).toFixed(1));
       areiaCima.setAttribute('height', alturaCima.toFixed(1));
-      // bulbo de baixo enche de baixo pra cima
       const alturaBaixo = BAIXO_MAX * prog;
       areiaBaixo.setAttribute('y', (BAIXO_BASE - alturaBaixo).toFixed(1));
       areiaBaixo.setAttribute('height', alturaBaixo.toFixed(1));
-      // filete some quando acaba
       filete.style.opacity = (prog > 0 && prog < 1) ? '1' : '0';
+    }
+
+    function abrirFullscreen(){
+      if (recursoAtual){
+        fsRecurso.innerHTML = recursoAtual.nome +
+          ' <span style="opacity:0.7">x2</span>';
+        fsRecurso.style.color = '#FBF3DD';
+      }
+      fsTempo.classList.remove('pouco', 'acabando');
+      fsTimer.classList.add('ativo');
+      // tenta fullscreen real do navegador (Android). Ignora se falhar.
+      const el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    }
+
+    function fecharFullscreen(){
+      fsTimer.classList.remove('ativo');
+      if (document.fullscreenElement && document.exitFullscreen){
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+
+    function encerrar(){
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+      rodando = false;
+      fecharFullscreen();
+      elTempo.classList.remove('acabou');
+      elTempo.textContent = formatar(DURACAO);
+      elDica.textContent = 'Toque na roda para sortear e iniciar a rodada.';
     }
 
     function tick(now){
@@ -524,37 +657,50 @@
       const prog = Math.min(1, decorrido / DURACAO);
       desenharAreia(prog);
 
+      const txt = formatar(restante);
+      elTempo.textContent = txt;
+      fsTempo.textContent = txt;
+
+      // cores conforme o tempo aperta
+      fsTempo.classList.toggle('pouco', restante <= 30 && restante > 10);
+      fsTempo.classList.toggle('acabando', restante <= 10);
+
       if (restante <= 0){
         elTempo.textContent = '00:00';
-        elTempo.classList.add('acabou');
-        elDica.textContent = 'Tempo esgotado! Vire o celular para reiniciar.';
+        fsTempo.textContent = '00:00';
         rodando = false;
         rafId = null;
+        if (navigator.vibrate) navigator.vibrate([120, 60, 120, 60, 200]);
+        // pequena pausa pra mostrar o 00:00, depois volta pra inicial
+        setTimeout(encerrar, 900);
         return;
       }
-      elTempo.textContent = formatar(restante);
       rafId = requestAnimationFrame(tick);
     }
 
-    function reiniciar(){
+    function reiniciar(recurso){
+      if (recurso) recursoAtual = recurso;
       if (rafId) cancelAnimationFrame(rafId);
       elTempo.classList.remove('acabou');
-      elDica.textContent = 'Vire o celular de cabeça para baixo para reiniciar o timer.';
-      // animação de virar a ampulheta
       ampulheta.classList.toggle('virando');
+      abrirFullscreen();
       inicio = performance.now();
       rodando = true;
       rafId = requestAnimationFrame(tick);
     }
 
-    // estado inicial: cheio em cima, parado
+    // estado inicial
     desenharAreia(0);
     filete.style.opacity = '0';
+    elTempo.textContent = formatar(DURACAO);
 
-    // toque na ampulheta reinicia (fallback universal)
-    ampulheta.addEventListener('click', reiniciar);
+    // toque na ampulheta também reinicia (fallback)
+    ampulheta.addEventListener('click', () => reiniciar());
 
-    return { reiniciar, estaRodando: () => rodando };
+    // toque em qualquer lugar do overlay encerra e volta pra inicial
+    fsTimer.addEventListener('click', encerrar);
+
+    return { reiniciar, encerrar, estaRodando: () => rodando };
   })();
 
   /* ---------- Virar o celular (sensor de orientação) ---------- */
@@ -570,9 +716,10 @@
       if (beta === null || beta === undefined) return;
       const viradoAgora = Math.abs(beta) > 150;
 
-      // dispara só na transição normal -> virado, com cooldown
+      // dispara só na transição normal -> virado, com cooldown,
+      // e só se o timer já estiver rodando (reinicia a contagem)
       const agora = Date.now();
-      if (viradoAgora && !deBaixoPraCima && (agora - ultimoDisparo) > 1200){
+      if (viradoAgora && !deBaixoPraCima && (agora - ultimoDisparo) > 1200 && timer.estaRodando()){
         ultimoDisparo = agora;
         timer.reiniciar();
       }
