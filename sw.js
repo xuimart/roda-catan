@@ -1,6 +1,6 @@
 // Service worker — Roda das Estações (Catan)
 // Troque a versão sempre que quiser forçar atualização do cache.
-const CACHE = 'roda-catan-v5';
+const CACHE = 'roda-catan-v6';
 
 const ASSETS = [
   './',

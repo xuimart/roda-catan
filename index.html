@@ -313,8 +313,41 @@
     box-shadow: 0 2px 5px rgba(0,0,0,0.15);
   }
   .btn-som.mudo{ opacity: 0.5; }
-  /* esconde o botão de som quando o timer está em tela cheia */
-  body.fs-aberto .btn-som{
+
+  .btn-dado{
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    left: 14px;
+    z-index: 60;
+    width: 42px;
+    height: 42px;
+    font-size: 1.2rem;
+    line-height: 1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: var(--panel);
+    border: 1px solid rgba(59,42,30,0.25);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+    opacity: 0.5;
+    transition: opacity 0.2s ease, box-shadow 0.2s ease;
+  }
+  /* quando está "ouvindo" o dado, fica destacado e pulsando */
+  .btn-dado.ouvindo{
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(201,162,39,0.7);
+    animation: escuta 1.5s ease-out infinite;
+  }
+  @keyframes escuta{
+    0%{ box-shadow: 0 0 0 0 rgba(201,162,39,0.6); }
+    100%{ box-shadow: 0 0 0 14px rgba(201,162,39,0); }
+  }
+
+  /* esconde os botões flutuantes quando o timer está em tela cheia */
+  body.fs-aberto .btn-som,
+  body.fs-aberto .btn-dado{
     opacity: 0;
     pointer-events: none;
   }
@@ -345,10 +378,12 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* faixa grande com a cor pura do recurso, pra identificar de longe */
+  /* faixa grande com a cor pura do recurso, pra identificar de longe.
+     Fica no RODAPÉ pra não ficar atrás da câmera/notch do celular. */
   .fs-faixa{
     width: 100%;
     padding: clamp(6px, 1.4vh, 12px) 0;
+    padding-bottom: max(clamp(6px, 1.4vh, 12px), env(safe-area-inset-bottom));
     text-align:center;
     background: var(--cor-recurso);
     color: #fff;
@@ -357,12 +392,12 @@
     font-size: clamp(1.1rem, 5vw, 1.7rem);
     letter-spacing: 0.03em;
     text-shadow: 0 1px 3px rgba(0,0,0,0.45);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.4);
     opacity: 0;
-    transform: translateY(-20px);
+    transform: translateY(20px);
     transition: opacity 0.5s 0.1s ease, transform 0.5s 0.1s ease;
     position: absolute;
-    top: 0; left: 0;
+    bottom: 0; left: 0;
   }
   .fullscreen-timer.ativo .fs-faixa{
     opacity: 1;
@@ -449,6 +484,7 @@
 <body>
 
 <button class="btn-som" id="btnSom" aria-label="Ligar ou desligar som" title="Som">🔊</button>
+<button class="btn-dado" id="btnDado" aria-label="Ouvir o dado para girar automaticamente" title="Ouvir dado">🎲</button>
 
 <div class="stage">
   <header>
@@ -956,6 +992,108 @@
       btnSom.classList.toggle('mudo', !ligado);
       // feedback ao religar
       if (ligado) som.tique();
+    });
+  })();
+
+  /* ---------- Ouvir o dado (microfone) pra girar automaticamente ---------- */
+  (function(){
+    const btnDado = document.getElementById('btnDado');
+    const elDica = document.getElementById('timerDica');
+
+    let ativo = false;
+    let ac = null, stream = null, analyser = null, dados = null, rafId = null;
+
+    // calibração (baseada na análise do áudio real da mesa de vidro):
+    // um impacto = energia bem acima do fundo; um "arremesso" = 2+ impactos
+    // fortes numa janela curta.
+    let fundo = 0.01;              // nível de ruído ambiente (auto-calibra)
+    const FATOR_PICO = 5.5;        // quantas vezes acima do fundo = impacto
+    const REFRATARIO = 130;        // ms entre impactos contados
+    const JANELA_RAJADA = 1800;    // ms: impactos dentro disso contam juntos
+    const IMPACTOS_P_GIRAR = 2;    // nº de impactos na janela pra disparar
+
+    let ultimoImpacto = 0;
+    let impactosRecentes = [];     // timestamps
+    let ultimoGiro = 0;
+
+    function energia(){
+      analyser.getByteTimeDomainData(dados);
+      let soma = 0;
+      for (let i = 0; i < dados.length; i++){
+        const v = (dados[i] - 128) / 128;
+        soma += v * v;
+      }
+      return Math.sqrt(soma / dados.length);
+    }
+
+    function loop(){
+      const e = energia();
+      // fundo acompanha lentamente o ambiente (média móvel quando não há pico)
+      const limiar = fundo * FATOR_PICO + 0.02;
+      const agora = performance.now();
+
+      if (e > limiar){
+        if (agora - ultimoImpacto > REFRATARIO){
+          ultimoImpacto = agora;
+          impactosRecentes.push(agora);
+          // mantém só os impactos dentro da janela
+          impactosRecentes = impactosRecentes.filter(t => agora - t <= JANELA_RAJADA);
+
+          if (impactosRecentes.length >= IMPACTOS_P_GIRAR &&
+              agora - ultimoGiro > 4000 && !girando){
+            ultimoGiro = agora;
+            impactosRecentes = [];
+            girar();  // dado detectado -> gira a roda (e inicia o timer)
+          }
+        }
+      } else {
+        // atualiza o fundo suavemente só quando está "quieto"
+        fundo = fundo * 0.95 + e * 0.05;
+      }
+
+      rafId = requestAnimationFrame(loop);
+    }
+
+    async function ligar(){
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+        });
+        const AC = window.AudioContext || window.webkitAudioContext;
+        ac = new AC();
+        const src = ac.createMediaStreamSource(stream);
+        analyser = ac.createAnalyser();
+        analyser.fftSize = 1024;
+        dados = new Uint8Array(analyser.fftSize);
+        src.connect(analyser);
+        ativo = true;
+        btnDado.classList.add('ouvindo');
+        elDica.textContent = 'Ouvindo o dado... jogue na mesa para girar.';
+        loop();
+      } catch (err) {
+        elDica.textContent = 'Não consegui acessar o microfone. Toque na roda para girar.';
+        btnDado.classList.remove('ouvindo');
+      }
+    }
+
+    function desligar(){
+      ativo = false;
+      btnDado.classList.remove('ouvindo');
+      if (rafId) cancelAnimationFrame(rafId);
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (ac) ac.close().catch(() => {});
+      ac = stream = analyser = null;
+      elDica.textContent = 'Toque na roda para sortear e iniciar a rodada.';
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      btnDado.style.display = 'none';   // sem suporte a microfone
+      return;
+    }
+
+    btnDado.addEventListener('click', () => {
+      som.destravar();
+      if (ativo) desligar(); else ligar();
     });
   })();
 

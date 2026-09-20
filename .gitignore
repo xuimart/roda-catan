@@ -12,3 +12,7 @@ __pycache__/
 
 # Node (caso use Bubblewrap/PWABuilder localmente)
 node_modules/
+
+# Áudios de teste (usados só pra calibrar a detecção do dado)
+*.aac
+*.wav
