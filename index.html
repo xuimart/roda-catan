@@ -352,6 +352,51 @@
     pointer-events: none;
   }
 
+  /* ---- Medidor do microfone ---- */
+  .mic-monitor{
+    width: min(100%, 320px);
+    margin-top: 4px;
+  }
+  .mic-monitor[hidden]{ display:none; }
+
+  .mic-barra{
+    position: relative;
+    width: 100%;
+    height: 14px;
+    background: rgba(59,42,30,0.15);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(59,42,30,0.25);
+  }
+  .mic-nivel{
+    position:absolute;
+    left:0; top:0; bottom:0;
+    width: 0%;
+    background: linear-gradient(90deg, var(--ovelha), var(--trigo), var(--tijolo));
+    border-radius: 999px;
+    transition: width 0.05s linear;
+  }
+  /* marcador do limiar de disparo */
+  .mic-limiar{
+    position:absolute;
+    top:-2px; bottom:-2px;
+    width: 2px;
+    background: var(--rim);
+    left: 50%;
+  }
+  .mic-info{
+    display:flex;
+    justify-content:space-between;
+    font-family: Verdana, system-ui, sans-serif;
+    font-size: 0.68rem;
+    color: var(--ink-soft);
+    margin-top: 4px;
+  }
+  /* pisca verde quando detecta um impacto */
+  .mic-barra.impacto{
+    box-shadow: 0 0 0 3px rgba(143,160,92,0.8);
+  }
+
   /* ---- Overlay fullscreen do timer ---- */
   .fullscreen-timer{
     position: fixed;
@@ -533,6 +578,18 @@
     <div class="tempo" id="tempo">01:30</div>
     <p class="timer-dica" id="timerDica">Toque na roda para sortear e iniciar a rodada.</p>
     <button class="btn-sensor" id="btnSensor" hidden>Ativar sensor de virar</button>
+
+    <!-- medidor do microfone (só aparece quando "ouvir dado" está ligado) -->
+    <div class="mic-monitor" id="micMonitor" hidden>
+      <div class="mic-barra">
+        <div class="mic-nivel" id="micNivel"></div>
+        <div class="mic-limiar" id="micLimiar"></div>
+      </div>
+      <div class="mic-info">
+        <span id="micStatus">🎤 ouvindo…</span>
+        <span id="micContagem">impactos: 0</span>
+      </div>
+    </div>
   </div>
 
   <div class="legenda" id="legenda"></div>
@@ -999,22 +1056,29 @@
   (function(){
     const btnDado = document.getElementById('btnDado');
     const elDica = document.getElementById('timerDica');
+    const monitor = document.getElementById('micMonitor');
+    const barra = monitor.querySelector('.mic-barra');
+    const elNivel = document.getElementById('micNivel');
+    const elLimiar = document.getElementById('micLimiar');
+    const elStatus = document.getElementById('micStatus');
+    const elContagem = document.getElementById('micContagem');
 
     let ativo = false;
     let ac = null, stream = null, analyser = null, dados = null, rafId = null;
 
     // calibração (baseada na análise do áudio real da mesa de vidro):
-    // um impacto = energia bem acima do fundo; um "arremesso" = 2+ impactos
-    // fortes numa janela curta.
+    // um impacto = pico de energia bem acima do ruído de fundo.
     let fundo = 0.01;              // nível de ruído ambiente (auto-calibra)
-    const FATOR_PICO = 5.5;        // quantas vezes acima do fundo = impacto
+    const FATOR_PICO = 4.5;        // quantas vezes acima do fundo = impacto
+    const PISO = 0.03;             // energia mínima absoluta pra contar
     const REFRATARIO = 130;        // ms entre impactos contados
-    const JANELA_RAJADA = 1800;    // ms: impactos dentro disso contam juntos
-    const IMPACTOS_P_GIRAR = 2;    // nº de impactos na janela pra disparar
+    const JANELA_RAJADA = 2000;    // ms: impactos dentro disso contam juntos
+    const IMPACTOS_P_DISPARAR = 1; // nº de impactos na janela pra iniciar o timer
 
     let ultimoImpacto = 0;
     let impactosRecentes = [];     // timestamps
-    let ultimoGiro = 0;
+    let ultimoDisparo = 0;
+    let totalImpactos = 0;         // contador só pra mostrar no monitor
 
     function energia(){
       analyser.getByteTimeDomainData(dados);
@@ -1028,27 +1092,40 @@
 
     function loop(){
       const e = energia();
-      // fundo acompanha lentamente o ambiente (média móvel quando não há pico)
-      const limiar = fundo * FATOR_PICO + 0.02;
+      const limiar = Math.max(fundo * FATOR_PICO, PISO);
       const agora = performance.now();
 
-      if (e > limiar){
+      // --- monitor visual ---
+      // escala: mostra a energia relativa a um teto de 0.25 (pico típico ~0.09)
+      const pct = Math.min(100, (e / 0.25) * 100);
+      elNivel.style.width = pct.toFixed(0) + '%';
+      elLimiar.style.left = Math.min(100, (limiar / 0.25) * 100).toFixed(0) + '%';
+
+      const ehImpacto = e > limiar;
+
+      if (ehImpacto){
         if (agora - ultimoImpacto > REFRATARIO){
           ultimoImpacto = agora;
+          totalImpactos++;
+          elContagem.textContent = 'impactos: ' + totalImpactos;
+          barra.classList.add('impacto');
+          setTimeout(() => barra.classList.remove('impacto'), 120);
+
           impactosRecentes.push(agora);
-          // mantém só os impactos dentro da janela
           impactosRecentes = impactosRecentes.filter(t => agora - t <= JANELA_RAJADA);
 
-          if (impactosRecentes.length >= IMPACTOS_P_GIRAR &&
-              agora - ultimoGiro > 4000 && !girando){
-            ultimoGiro = agora;
+          if (impactosRecentes.length >= IMPACTOS_P_DISPARAR &&
+              agora - ultimoDisparo > 3000){
+            ultimoDisparo = agora;
             impactosRecentes = [];
-            girar();  // dado detectado -> gira a roda (e inicia o timer)
+            elStatus.textContent = '🎲 dado! iniciando timer…';
+            // DADO detectado -> inicia SÓ o timer (mantém o último recurso da roleta)
+            timer.reiniciar(ultimoRecurso);
           }
         }
       } else {
-        // atualiza o fundo suavemente só quando está "quieto"
-        fundo = fundo * 0.95 + e * 0.05;
+        // atualiza o fundo suavemente só quando está relativamente quieto
+        fundo = fundo * 0.96 + e * 0.04;
       }
 
       rafId = requestAnimationFrame(loop);
@@ -1061,24 +1138,32 @@
         });
         const AC = window.AudioContext || window.webkitAudioContext;
         ac = new AC();
+        if (ac.state === 'suspended') await ac.resume();
         const src = ac.createMediaStreamSource(stream);
         analyser = ac.createAnalyser();
         analyser.fftSize = 1024;
         dados = new Uint8Array(analyser.fftSize);
         src.connect(analyser);
         ativo = true;
+        totalImpactos = 0;
+        impactosRecentes = [];
         btnDado.classList.add('ouvindo');
-        elDica.textContent = 'Ouvindo o dado... jogue na mesa para girar.';
+        monitor.hidden = false;
+        elStatus.textContent = '🎤 ouvindo…';
+        elContagem.textContent = 'impactos: 0';
+        elDica.textContent = 'Ouvindo o dado. Jogue na mesa para iniciar o timer.';
         loop();
       } catch (err) {
-        elDica.textContent = 'Não consegui acessar o microfone. Toque na roda para girar.';
+        elDica.textContent = 'Não consegui acessar o microfone (' + (err.name || 'erro') + ').';
         btnDado.classList.remove('ouvindo');
+        monitor.hidden = true;
       }
     }
 
     function desligar(){
       ativo = false;
       btnDado.classList.remove('ouvindo');
+      monitor.hidden = true;
       if (rafId) cancelAnimationFrame(rafId);
       if (stream) stream.getTracks().forEach(t => t.stop());
       if (ac) ac.close().catch(() => {});
