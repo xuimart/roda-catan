@@ -294,6 +294,26 @@
   canvas{ cursor: pointer; }
   canvas.girando{ cursor: default; }
 
+  .btn-som{
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    right: 14px;
+    z-index: 60;
+    width: 42px;
+    height: 42px;
+    font-size: 1.2rem;
+    line-height: 1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: var(--panel);
+    border: 1px solid rgba(59,42,30,0.25);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+  }
+  .btn-som.mudo{ opacity: 0.5; }
+
   /* ---- Overlay fullscreen do timer ---- */
   .fullscreen-timer{
     position: fixed;
@@ -331,11 +351,16 @@
   }
   .fs-recurso{
     font-family: Georgia, serif;
-    font-size: clamp(1.4rem, 7vw, 2.4rem);
+    font-size: clamp(1.6rem, 8vw, 2.8rem);
     font-weight: 700;
     opacity: 0;
     transform: translateY(14px);
-    transition: opacity 0.5s 0.2s ease, transform 0.5s 0.2s ease;
+    transition: opacity 0.5s 0.2s ease, transform 0.5s 0.2s ease, color 0.3s ease;
+    /* halo claro atrás pra cores escuras (madeira/pedra) ficarem legíveis */
+    text-shadow:
+      0 0 1px rgba(251,243,221,0.9),
+      0 0 10px rgba(251,243,221,0.35),
+      0 2px 8px rgba(0,0,0,0.5);
   }
   .fs-tempo{
     font-family: Verdana, system-ui, sans-serif;
@@ -398,6 +423,8 @@
 </style>
 </head>
 <body>
+
+<button class="btn-som" id="btnSom" aria-label="Ligar ou desligar som" title="Som">🔊</button>
 
 <div class="stage">
   <header>
@@ -469,6 +496,81 @@
     { nome: 'Madeira', cor: '#7A5230' }
   ];
 
+  /* ---------- Sons (sintetizados, sem arquivos) ---------- */
+  const som = (function(){
+    let ac = null;
+    let ligado = true;
+
+    function ctxAudio(){
+      if (!ac){
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        ac = new AC();
+      }
+      return ac;
+    }
+
+    // "destrava" o áudio no primeiro toque (exigência dos navegadores)
+    function destravar(){
+      const a = ctxAudio();
+      if (a && a.state === 'suspended') a.resume().catch(() => {});
+    }
+
+    // toca um beep simples
+    function beep(freq, dur, tipo, volume, quando){
+      const a = ctxAudio();
+      if (!a || !ligado) return;
+      const t = quando || a.currentTime;
+      const osc = a.createOscillator();
+      const g = a.createGain();
+      osc.type = tipo || 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      // envelope suave pra não estalar
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(volume || 0.3, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(g).connect(a.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    }
+
+    // tique dos últimos segundos (agudo e curto)
+    function tique(){ beep(880, 0.09, 'triangle', 0.25); }
+    // último tique antes do fim (mais grave, marca urgência)
+    function tiqueForte(){ beep(660, 0.12, 'square', 0.3); }
+
+    // alarme de fim: sequência de 3 beeps
+    function fim(){
+      const a = ctxAudio();
+      if (!a || !ligado) return;
+      const t0 = a.currentTime;
+      beep(523, 0.18, 'sawtooth', 0.35, t0);
+      beep(523, 0.18, 'sawtooth', 0.35, t0 + 0.25);
+      beep(392, 0.5,  'sawtooth', 0.4,  t0 + 0.5);
+    }
+
+    // som curtinho ao girar a roda
+    function giro(){
+      const a = ctxAudio();
+      if (!a || !ligado) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      const g = a.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(300, t);
+      osc.frequency.exponentialRampToValueAtTime(900, t + 0.25);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      osc.connect(g).connect(a.destination);
+      osc.start(t);
+      osc.stop(t + 0.32);
+    }
+
+    return { destravar, tique, tiqueForte, fim, giro,
+             alternar: () => (ligado = !ligado), estaLigado: () => ligado };
+  })();
+
   const canvas = document.getElementById('roda');
   const ctx = canvas.getContext('2d');
   const size = canvas.width;
@@ -526,6 +628,8 @@
   function girar(){
     if (girando) return;
     girando = true;
+    som.destravar();   // libera o áudio no gesto do usuário
+    som.giro();
     canvas.classList.add('girando');
     resultado.classList.remove('destaque');
     resNome.style.color = 'var(--ink-soft)';
@@ -602,6 +706,7 @@
     let rafId = null;
     let rodando = false;
     let recursoAtual = null;
+    let ultimoSegundoBeep = -1;   // controla 1 beep por segundo
 
     function formatar(seg){
       seg = Math.max(0, Math.ceil(seg));
@@ -624,8 +729,9 @@
     function abrirFullscreen(){
       if (recursoAtual){
         fsRecurso.innerHTML = recursoAtual.nome +
-          ' <span style="opacity:0.7">x2</span>';
-        fsRecurso.style.color = '#FBF3DD';
+          ' <span style="opacity:0.75">x2</span>';
+        // escreve o recurso na cor dele (ovelha=verde, tijolo=vermelho, etc.)
+        fsRecurso.style.color = recursoAtual.cor;
       }
       fsTempo.classList.remove('pouco', 'acabando');
       fsTimer.classList.add('ativo');
@@ -665,14 +771,23 @@
       fsTempo.classList.toggle('pouco', restante <= 30 && restante > 10);
       fsTempo.classList.toggle('acabando', restante <= 10);
 
+      // beep 1x por segundo nos últimos 10s
+      const segRestante = Math.ceil(restante);
+      if (segRestante <= 10 && segRestante > 0 && segRestante !== ultimoSegundoBeep){
+        ultimoSegundoBeep = segRestante;
+        if (segRestante <= 3) som.tiqueForte(); else som.tique();
+        if (navigator.vibrate) navigator.vibrate(segRestante <= 3 ? 60 : 25);
+      }
+
       if (restante <= 0){
         elTempo.textContent = '00:00';
         fsTempo.textContent = '00:00';
         rodando = false;
         rafId = null;
+        som.fim();  // alarme de fim
         if (navigator.vibrate) navigator.vibrate([120, 60, 120, 60, 200]);
         // pequena pausa pra mostrar o 00:00, depois volta pra inicial
-        setTimeout(encerrar, 900);
+        setTimeout(encerrar, 1100);
         return;
       }
       rafId = requestAnimationFrame(tick);
@@ -683,6 +798,8 @@
       if (rafId) cancelAnimationFrame(rafId);
       elTempo.classList.remove('acabou');
       ampulheta.classList.toggle('virando');
+      ultimoSegundoBeep = -1;   // rearma os beeps pra esta rodada
+      som.destravar();
       abrirFullscreen();
       inicio = performance.now();
       rodando = true;
@@ -761,6 +878,19 @@
       // Android e afins: ativa direto.
       ativar();
     }
+  })();
+
+  /* ---------- Botão de som ---------- */
+  (function(){
+    const btnSom = document.getElementById('btnSom');
+    btnSom.addEventListener('click', () => {
+      som.destravar();
+      const ligado = som.alternar();
+      btnSom.textContent = ligado ? '🔊' : '🔇';
+      btnSom.classList.toggle('mudo', !ligado);
+      // feedback ao religar
+      if (ligado) som.tique();
+    });
   })();
 
   if ('serviceWorker' in navigator) {
